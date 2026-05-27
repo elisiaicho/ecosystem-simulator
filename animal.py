@@ -3,7 +3,7 @@ import random
 
 
 
-#====== 공통 부모 animal 만들기 ===========#
+# 공통 부모 animal  
 class Animal:
     def __init__(self, name, hp, age, max_age, speed, hunger, x, y, 
                  cold_resistance, gender, gestation, prey_types, hunting_range,
@@ -102,7 +102,7 @@ class Animal:
         else:
             print(f"{target.name}이(가) 사냥 거리를 벗어났습니다.")
     def eat_krill(self):
-        #Penguin, Sel, ArticCod에만 적용되도록 제한하는 매서드
+        #Penguin, Seal, ArticCod에만 적용되도록 제한하는 매서드
         allowedanimal = [ 'Penguin', 'Seal', 'ArticCod']
         if type(self).__name__ in allowedanimal:
             self.hunger-=15
