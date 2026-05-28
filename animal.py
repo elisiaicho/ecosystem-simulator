@@ -3,13 +3,13 @@ import random
 
 
 
-# 공통 부모 animal  
+# 공통 부모 animal 만들기 
 class Animal:
     def __init__(self, name, hp, age, max_age, speed, hunger, x, y, 
                  cold_resistance, gender, gestation, prey_types, hunting_range,
                  attack, defense):
 
-        # ── 공통 속성 ────────────
+        # 공통 속성 
         self.name            = name          # penguin, seal, polarbear, articfox, orca, articcod, krill, reindeer
         self.hp              = hp            #hp 범위 0 - 100 
         self.age             = age           # 현재 나이
@@ -35,6 +35,9 @@ class Animal:
         self.hunger = max(0, self.hunger - amount)      # 몇몇 초식동물에 적용
 
     def take_damage(self, damage):                       #포식자와 피식자의 생태계 구현
+        if not self.is_alive:
+            return
+        
         self.hp -= damage
         if self.hp <= 0:
             self.die()
@@ -48,11 +51,26 @@ class Animal:
 
     def update(self):                                            # 턴 호출
         """매 턴 호출해야함"""
-        self.hunger += 2
+        if not self.is_alive:
+            return
+        self.hunger += 4
+        self.age +=1
+        if self.age >= self.max_age:
+            self.die()       #여기도 maxdage설정 필요
+            return
         if self.reproduce_cool > 0:
             self.reproduce_cool -= 1
-        if self.hunger >= 100:
-            self.take_damage(10)
+        if self.hunger >= 200:
+            if self.is_alive:
+                self.die()
+        if self.is_pregnant:
+            self.gestation -= 1
+
+            if self.gestation <=0:
+               self.give_birth()
+
+                #여기도 자식클래스에서 출산 오버라이딩 해야됨(새끼 동물 객체 생성후, 동물 리스트에 추가)
+        
 
     def can_reproduce(self):                                    # 번식 기능 1
         return (
@@ -69,10 +87,17 @@ class Animal:
         if not self.can_reproduce():    return None
         if not other.can_reproduce():   return None
 
+        # 암컷(Female)을 찾아 임신시키기
+        if self.gender == "Female":
+            self.is_pregnant = True
+            # 임신 기간 설정 (오버라이딩 필요)
+        elif other.gender == "Female":
+            other.is_pregnant = True
+            #여기도 오버라이딩 필요함 (gestation은 종별로 설정)
         self.reproduce_cool  = 10
         other.reproduce_cool = 10
         print(f"{self.name}와 {other.name}이(가) 번식했다.")
-        return None  # 자식 클래스에서 새끼 객체 반환해야함
+        return NotImplementedError  # 자식 클래스에서 새끼 객체 반환해야함
     
     def give_birth(self):
         #gestation 고려, 그 시간 이후 새끼 객체를 반환해야함
@@ -80,8 +105,9 @@ class Animal:
             self.is_pregnant = False
             self.reproduce_cool = 10
             print(f"{self.name}이/가 새끼를 낳았습니다.")
-            return type(self)
-        return None 
+            return NotImplementedError   #여기도 자식에서 오버라이딩 해야됨
+        
+    
     def find_nearest(self, animals, target_types):
         investigating_animals = (
             animal for animal in animals 
@@ -91,19 +117,18 @@ class Animal:
         return min(investigating_animals, key=self.get_distance, default=None)
 
 
-
     def hunt(self, target):
         distance = self.get_distance(target)
         if distance <= self.hunting_range:
             target.take_damage(self.attack)  #타겟에게 피해
-            if target.is_alive - False: 
+            if target.is_alive: 
                 self.hunger -= 40  #사냥 성공시 배고픔이 감소할 것
                 print(f"{self.name}이(가) {target.name} 사냥에 성공했습니다.")
         else:
             print(f"{target.name}이(가) 사냥 거리를 벗어났습니다.")
     def eat_krill(self):
-        #Penguin, Seal, ArticCod에만 적용되도록 제한하는 매서드
-        allowedanimal = [ 'Penguin', 'Seal', 'ArticCod']
+        # Penguin, Seaal, ArcticCod에만 적용되도록 제한하는 매서드
+        allowedanimal = [ 'Penguin', 'Seal', 'ArcticCod']
         if type(self).__name__ in allowedanimal:
             self.hunger-=15
             print(f"{self.name}이(가) 크릴을 섭취했습니다.")
