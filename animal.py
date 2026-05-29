@@ -28,6 +28,7 @@ class Animal:
         self.hunting_range   = hunting_range
         self.attack          = attack
         self.defense         = defense
+        self._system = None 
 
     # 공통 메서드 
 
@@ -64,12 +65,8 @@ class Animal:
             if self.is_alive:
                 self.die()
         if self.is_pregnant:
-            if self.gestation >0:
-                self.gestation -= 1
-
-            if self.gestation <=0:
-               self.give_birth()
-
+            self. gestation -= 1
+                #이미 system에서 출산을 구현함. 
                 #여기도 자식클래스에서 출산 오버라이딩 해야됨(새끼 동물 객체 생성후, 동물 리스트에 추가)
         
 
@@ -120,16 +117,14 @@ class Animal:
 
     def hunt(self, target):
         distance = self.get_distance(target)
+        hunt_prob = self.speed/ (self.speed + target.speed) * (1- 1/5 * (distance/ self.hunting_range))
         if distance <= self.hunting_range:
-            target.take_damage(self.attack)  #타겟에게 피해
-            if target.is_alive: 
-                self.hunger -= 40  #사냥 성공시 배고픔이 감소할 것
-                print(f"{self.name}이(가) {target.name} 사냥에 성공했습니다.")
+            if random.random() < hunt_prob:
+                target.take_damage(self.attack)  #타겟에게 피해
+            if not target.is_alive: 
+                self.hunger = max(0,self.hunger -40)  #사냥 성공시 배고픔이 감소할 것
+                print(f"{self.name}이(가) {target.name} 사냥에 성공했습니다. 확률 {hunt_prob:.0%}, 거리 {distance:.1f}/{self.hunting_range}")
         else:
-            print(f"{target.name}이(가) 사냥 거리를 벗어났습니다.")
-    def eat_krill(self):
-        # Penguin, Seaal, ArcticCod에만 적용되도록 제한하는 매서드
-        allowedanimal = [ 'Penguin', 'Seal', 'ArcticCod']
-        if type(self).__name__ in allowedanimal:
-            self.hunger-=15
-            print(f"{self.name}이(가) 크릴을 섭취했습니다.")
+            print(f"{target.name}이(가) 사냥 거리를 벗어났습니다.확률 {hunt_prob:.0%}, 거리 {distance:.1f}/{self.hunting_range}")
+        
+    # eatkrill 여기 넣는거는 객체 지향에서 깔 거 같아가지고 안넣음. 필히 marineanimal에서 넣어주셈.
