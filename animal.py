@@ -13,7 +13,7 @@ PREGNANT_CAPABLE_HUNGER= 60
 REPRODUCE_COOLTIME = 10
 """번식 쿨타임. 몇턴 더 버텨야 하는지"""
 # 공통 부모 animal 만들기 
-class Animal:
+class Animal(abc.ABC):
     def __init__(self, hp, age, max_age, speed, hunger, x, y, 
                  cold_resistance, gender, gestation, prey_types, hunting_range,
                  attack, defense):
