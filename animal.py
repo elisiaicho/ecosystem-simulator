@@ -64,7 +64,8 @@ class Animal:
             if self.is_alive:
                 self.die()
         if self.is_pregnant:
-            self.gestation -= 1
+            if self.gestation >0:
+                self.gestation -= 1
 
             if self.gestation <=0:
                self.give_birth()
