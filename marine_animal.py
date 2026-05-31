@@ -1,5 +1,5 @@
 import random
- 
+from animal import Animal 
 # animal.py 에서 Animal 클래스를 import 한다고 가정
 # from animal import Animal
  
