@@ -26,7 +26,7 @@ class _Floe:
 
     def __init__(self, cx, cy, r, rng):
         self.cx, self.cy, self.r = cx, cy, r
-        sp = rng.uniform(0.02, 0.06)          # 표류 속도(느리게)
+        sp = rng.uniform(0.01, 0.03)          # 표류 속도(느리게)
         ang = rng.uniform(0, 2 * math.pi)
         self.vx, self.vy = sp * math.cos(ang), sp * math.sin(ang)
         # 위성 원(2~4개)로 비대칭/울퉁불퉁한 윤곽
