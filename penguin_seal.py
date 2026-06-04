@@ -21,7 +21,7 @@ class Penguin(Animal):
     MATURITY = 10
     REPRO_COOLDOWN = 18
     BASE_REPRO_CHANCE = 0.6
-    METABOLISM = 1.5
+    METABOLISM = 4
     WELLFED_HUNGER = 55
     DETECTION = 15.0
     LIFESPAN = 360
@@ -29,10 +29,10 @@ class Penguin(Animal):
 
     PREY = ("ArcticCod",)
     EATS_KRILL = True
-    HUNT_SUCCESS = 0.55
-    EAT_GAIN = 40.0                # 대구를 먹었을 때
+    HUNT_SUCCESS = 0.45
+    EAT_GAIN = 30.0                # 대구를 먹었을 때
     KRILL_TAKE = 12.0
-    KRILL_GAIN = 26.0             # 크릴을 먹었을 때
+    KRILL_GAIN = 15.0             # 크릴을 먹었을 때
 
     def __init__(self, x=0, y=0, **kw):
         super().__init__(x=x, y=y, hp=50, speed=1.1, cold_resistance=0.85, **kw)

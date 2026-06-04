@@ -58,3 +58,4 @@ class Orca(Animal):
     def __init__(self, x=0, y=0, **kw):
         super().__init__(x=x, y=y, hp=250, speed=1.4, cold_resistance=0.85,
                          hunger=25, **kw)
+        self.echo_ring =0

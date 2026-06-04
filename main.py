@@ -36,6 +36,7 @@ from krill_reindeer import Krill, Reindeer           # 1216 홍주영
 from ecosystem_events import (Blizzard, GlacierCollapse,
                               Starvation, AiBoilingApocalypse)
 from terrain import Terrain
+from viz_manager import VisualManager # 내가 별개로 추가한 클래스
 
 # ── 세계 크기 ──────────────────────────────────────────────
 WORLD_W = 120
@@ -119,6 +120,12 @@ class Simulation:
         self.history["Warming"] = []
         self.history["WaterTemp"] = []
 
+
+        # ─────────────────────────────────────────────────────────
+        # [추가] GUI 시각 효과 애니메이션을 위한 이벤트 저장소
+        self.visual_effects = []  # [('hunt', x, y), ('reproduce', x, y)] 형태로 저장됨
+        # ─────────────────────────────────────────────────────────
+    
     # ── 초기 배치(지형 기반) ─────────────────────────────────
     def _rand_pos(self, habitat):
         if habitat == "ice":
@@ -300,13 +307,13 @@ class Simulation:
                 nk.swarm_size = half
 
         for k in krill:
-            k.drift(self.world_w, self.world_h, self.sea_line)
+            k.drift(self.world_w, self.world_h, self.sea_line, terrain=self.terrain)
 
     # ── 이끼 재생(로지스틱) ──────────────────────────────────
     def _update_lichen(self):
         L = self.lichen
         self.lichen = min(self.LICHEN_CAP,
-                          L + self.LICHEN_R * L * (1 - L / self.LICHEN_CAP))
+                          L + self.LICHEN_R * L * (1 - L / self.LICHEN_CAP)*3/4)
 
     def _update_carcasses(self):
         for c in self.carcasses:
@@ -375,10 +382,14 @@ class Simulation:
             a._clamp(self.world_w, self.world_h)
 
     def _hunt(self, pred, prey_types):
+        
         prey, d = self._nearest(
             pred, lambda o: o.SPECIES in prey_types, pred.DETECTION)
         if prey is None:
             return False
+        if pred.SPECIES == "Orca":
+            if pred.echo_ring <=0:
+                pred.echo_ring = 20
         if d > ATTACK_RANGE:
             pred.state = "hunting"
             pred.move_toward(prey.x, prey.y, self.world_w, self.world_h)
@@ -386,6 +397,7 @@ class Simulation:
             return False
         # 사냥 시도(포화형: 매우 굶주리면 성공률 약간 ↑)
         success = pred.HUNT_SUCCESS + (0.15 if pred.hunger > 80 else 0.0)
+        
         # 저밀도 은신처(Holling type III): 피식종이 희소하면 잡기 매우 어려움
         # → 희소종이 0 으로 내몰리지 않고 강하게 회복(0 부근에 강한 복원력).
         prey_n = getattr(self, "_counts", {}).get(prey.SPECIES, 999)
@@ -395,6 +407,11 @@ class Simulation:
         if random.random() < success:
             prey.take_damage(99999)
             pred.eat(pred.EAT_GAIN)
+
+            
+            # [추가] 사냥 성공한 타겟 동물의 위치를 이펙트 큐에 등록
+            self.visual_effects.append(('hunt', pred.x, pred.y))
+            # ─────────────────────────────────────────────────────────
             return True
         return False
 
@@ -420,7 +437,9 @@ class Simulation:
         if deer.hunger > 20 and self.lichen > deer.GRAZE_COST:
             self.lichen -= deer.GRAZE_COST
             deer.eat(deer.GRAZE_GAIN)
-            deer.random_walk(self.world_w, self.world_h)
+            # 먹는 중엔 제자리 (가끔만 조금 움직임)
+            if random.random() < 0.3:
+                deer.random_walk(self.world_w, self.world_h)
         else:
             deer.random_walk(self.world_w, self.world_h)
         deer._clamp(self.world_w, self.world_h)
@@ -451,13 +470,55 @@ class Simulation:
     def _reproduce(self):
         c = self.counts()
         newborns = []
+
+        # 유성생식: 같은 종 암수를 짝지어 번식
+        # 종별로 번식 가능한 암/수 목록을 만들고 짝 매칭
+        sexual_by_species = {}
+        asexual = []
         for a in self.animals:
             if not a.is_alive or a.SPECIES == "Krill":
-                continue  # 크릴은 바이오매스로 번식
-            n = c[a.SPECIES]
-            # 유성생식은 같은 종이 2 이상 있어야(짝) 번식
-            if a.SEXUAL and n < 2:
                 continue
+            if a.SEXUAL:
+                sexual_by_species.setdefault(a.SPECIES, {"M": [], "F": []})
+                key = "F" if a.gender == "F" else "M"
+                sexual_by_species[a.SPECIES][key].append(a)
+            else:
+                asexual.append(a)
+
+        # 유성생식: 암수 짝 매칭
+        for sp, groups in sexual_by_species.items():
+            n = c[sp]
+            if n < 2:
+                continue
+            males   = [m for m in groups["M"] if m.can_reproduce(n) > 0]
+            females = [f for f in groups["F"] if f.can_reproduce(n) > 0]
+            random.shuffle(males)
+            random.shuffle(females)
+            for male, female in zip(males, females):
+                if c[sp] >= male.CARRYING_CAPACITY:
+                    break
+                # 두 개체의 번식 확률 평균으로 최종 확률 결정
+                chance = (male.can_reproduce(n) + female.can_reproduce(n)) / 2
+                if random.random() >= chance:
+                    continue
+                for _ in range(male.LITTER):
+                    if c[sp] >= male.CARRYING_CAPACITY:
+                        break
+                    ox = female.x + random.uniform(-3, 3)
+                    oy = female.y + random.uniform(-3, 3)
+                    child = female.make_offspring(ox, oy)
+                    child._clamp(self.world_w, self.world_h)
+                    newborns.append(child)
+                    c[sp] += 1
+                    # [추가] 번식이 일어난 부모(혹은 새끼)의 위치를 이펙트 큐에 등록
+                    self.visual_effects.append(('reproduction', male.x, female.y))
+                    # ─────────────────────────────────────────────────────────
+                male.reset_repro()
+                female.reset_repro()
+
+        # 무성생식
+        for a in asexual:
+            n = c[a.SPECIES]
             chance = a.can_reproduce(n)
             if chance <= 0:
                 continue
@@ -472,6 +533,7 @@ class Simulation:
                     newborns.append(child)
                     c[a.SPECIES] += 1
                 a.reset_repro()
+
         self.animals.extend(newborns)
 
     # ── 사망 정리 + 사체 ─────────────────────────────────────

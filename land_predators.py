@@ -26,7 +26,7 @@ class PolarBear(Animal):
     DETECTION = 22.0
     LIFESPAN = 900
     TEMP_TOLERANCE = 5.0           # 공기온도 기준
-    ICE_LOSS_DMG = 3.0             # 헤엄 능숙 → 피해 작음(단, 사냥터 상실)
+    ICE_LOSS_DMG = 10.0             # 헤엄 능숙 → 피해 작음(단, 사냥터 상실)
 
     PREY = ("Seal", "Reindeer")
     HUNT_SUCCESS = 0.5
@@ -51,7 +51,7 @@ class ArcticFox(Animal):
     DETECTION = 18.0
     LIFESPAN = 320
     TEMP_TOLERANCE = 7.0           # 공기온도 기준
-    ICE_LOSS_DMG = 9.0
+    ICE_LOSS_DMG = 25.0
 
     # 여우는 작은 먹이(레밍 등, 추상화한 재생 자원 forage)와 사체로 산다.
     SCAVENGER = True
