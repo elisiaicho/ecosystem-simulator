@@ -64,7 +64,7 @@ class Terrain:
     AIR_BASE = -6.0
     AIR_NOISE = 2.0
 
-    def __init__(self, world_w, world_h, seed=None, grid_w=60, grid_h=40):
+    def __init__(self, world_w, world_h, seed=None, grid_w=120, grid_h=80):
         self.world_w = world_w
         self.world_h = world_h
         self.grid_w = grid_w
@@ -276,7 +276,7 @@ class Terrain:
         return rng.uniform(0, self.world_w), rng.uniform(0, self.world_h)
 
     def random_water_pos(self, rng=random):
-        for _ in range(4000000000):
+        for _ in range(4000):
             x = rng.uniform(0, self.world_w - 1)
             y = rng.uniform(0, self.world_h - 1)
             if not self.is_ice_at(x, y):
