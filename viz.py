@@ -1,7 +1,6 @@
 """
 viz.py
 ------
-pygame 실시간 시각화 (담당: 1210 이강희)
 
 [카메라 스크롤 구조]
 - 맵 전체(WORLD_W x WORLD_H)는 큰 가상 캔버스에 그려진다.
@@ -22,13 +21,14 @@ import pygame
 import os
 import math
 import time
+import random
 
 # ── 화면 배치 ──────────────────────────────────────────────────────────────
 SCALE    = 8        # 시뮬 1칸 = 8픽셀
 UI_W     = 300      # 우측 UI 패널 너비
 VIEW_W   = 1280     # 뷰포트 너비 (픽셀)
 VIEW_H   = 720      # 뷰포트 높이 (픽셀)
-CAM_SPEED = 25      # 키보드 카메라 이동 속도 (픽셀/프레임)
+CAM_SPEED = 12      # 키보드 카메라 이동 속도 (픽셀/프레임)
 SCROLL_SPD = 40     # 마우스 휠 스크롤 속도
 
 C_ICE   = (224, 236, 246)
@@ -65,15 +65,25 @@ KOR = {
 # ── 스프라이트 ──────────────────────────────────────────────────────────────
 ANIMAL_SPRITES = {}
 
+# ── 펭귄 희귀 변종 스킨 ───────────────────────────────────────────────────────
+# 각 펭귄은 출생 시 5% 확률로 '이나경', 5% 확률로 '윈터', 90% 확률로 일반 펭귄.
+# 스킨은 좌우 구분 이미지가 없으므로 단일 이미지를 로드 후 좌우 자동 생성한다.
+PENGUIN_SKINS = {
+    "inakyung": "penguin_이나경.png",
+    "winter":   "penguin_윈터.png",
+}
+PENGUIN_SKIN_SPRITES = {}
+PENGUIN_SKIN_PROB = 0.05   # 변종 1종당 출현 확률
+
 ASSET_FILENAMES = {
-    "PolarBear": ("polarbear_right.png",  "polarbear_left.png"),
-    "ArcticFox": ("arcticfox_right.png",  "arcticfox_left.png"),
-    "Penguin":   ("penguin_right.png",    "penguin_left.png"),
-    "Seal":      ("seal_right.png",       "seal_left.png"),
-    "Orca":      ("orca_right.png",       "orca_left.png"),
-    "ArcticCod": ("arcticcod_right.png",  "arcticcod_left.png"),
-    "Krill":     ("krill_right.png",      "krill_left.png"),
-    "Reindeer":  ("reindeer_right.png",   "reindeer_left.png"),
+    "PolarBear": ("polarbear_right.png", "polarbear_left.png"),
+    "ArcticFox": ("arcticfox_right.png", "arcticfox_left.png"),
+    "Penguin":   ("penguin_right.png", "penguin_left.png"),
+    "Seal":      ("seal_right.png", "seal_left.png"),
+    "Orca":      ("orca_right.png", "orca_left.png"),
+    "ArcticCod": ("arcticcod_right.png", "arcticcod_left.png"),
+    "Krill":     ("krill_right.png", "krill_left.png"),
+    "Reindeer":  ("reindeer_right.png", "reindeer_left.png"),
 }
 
 
@@ -100,6 +110,34 @@ def load_animal_assets():
             print(f"[이미지 로드] {sp} ✓")
         except Exception as e:
             print(f"[오류] {sp} 이미지 로드 실패: {e}")
+
+    # ── 펭귄 희귀 변종 스킨 로드 (단일 이미지 → 좌우 자동 생성) ──────────────
+    pr      = SPECIES_R["Penguin"]
+    skin_h  = max(4, int(pr * SCALE * 2.5 * IMG_SCALE))
+    for key, fname in PENGUIN_SKINS.items():
+        try:
+            path      = os.path.join(base_dir, "assets", fname)
+            img_right = _load_img(path, skin_h)
+            # 원본이 오른쪽을 본다고 가정. 만약 왼쪽을 보면 right/left를 서로 바꾸면 됨.
+            img_left  = pygame.transform.flip(img_right, True, False)
+            PENGUIN_SKIN_SPRITES[key] = {"right": img_right, "left": img_left}
+            print(f"[이미지 로드] Penguin/{key} ✓")
+        except Exception as e:
+            print(f"[오류] Penguin/{key} 스킨 로드 실패: {e}")
+
+
+def assign_penguin_skin(a):
+    """펭귄 개체의 변종을 출생(최초 렌더) 시 1회 결정해 고정한다.
+    반환값: 'inakyung' | 'winter' | None(일반).
+    개체에 _viz_skin 속성을 캐싱하므로 이후 프레임에서 변하지 않는다."""
+    skin = getattr(a, "_viz_skin", "__unset__")
+    if skin == "__unset__":
+        roll = random.random()
+        if   roll < PENGUIN_SKIN_PROB:           skin = "inakyung"
+        elif roll < PENGUIN_SKIN_PROB * 2:       skin = "winter"
+        else:                                    skin = None
+        a._viz_skin = skin
+    return skin
 
 
 # ── 좌표 변환 헬퍼 ──────────────────────────────────────────────────────────
@@ -280,6 +318,12 @@ def run_with_pygame(sim):
             r           = SPECIES_R[a.SPECIES]
             sprite_data = ANIMAL_SPRITES.get(a.SPECIES)
 
+            # 펭귄이면 변종 스킨을 우선 사용 (개체별 출생 시 고정)
+            if a.SPECIES == "Penguin":
+                skin = assign_penguin_skin(a)
+                if skin and skin in PENGUIN_SKIN_SPRITES:
+                    sprite_data = PENGUIN_SKIN_SPRITES[skin]
+
             if sprite_data:
                 img  = sprite_data["right"] if a.facing >= 0 else sprite_data["left"]
                 rect = img.get_rect(center=(px, py))
@@ -402,8 +446,14 @@ def run_with_pygame(sim):
             info.fill((22, 26, 36))
             view_surf.blit(info, (bx, by))
             pygame.draw.rect(view_surf, C_TITLE, (bx, by, bw, bh), 1)
+            _skin_kor = {"inakyung": "이나경", "winter": "윈터"}
+            _sp_label = selected_animal.SPECIES
+            if selected_animal.SPECIES == "Penguin":
+                _sk = getattr(selected_animal, "_viz_skin", None)
+                if _sk in _skin_kor:
+                    _sp_label += f" ({_skin_kor[_sk]})"
             lines = [
-                f" 종류: {selected_animal.SPECIES}",
+                f" 종류: {_sp_label}",
                 f" 성별: {'수컷(M)' if selected_animal.gender == 'M' else '암컷(F)'}",
                 f" 나이: {selected_animal.age}",
                 f" 체력: {int(get_hp(selected_animal))}",
