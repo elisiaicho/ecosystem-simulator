@@ -39,8 +39,8 @@ from terrain import Terrain
 from viz_manager import VisualManager # 내가 별개로 추가한 클래스
 
 # ── 세계 크기 ──────────────────────────────────────────────
-WORLD_W = 120
-WORLD_H = 80
+WORLD_W = 360
+WORLD_H = 240
 SEA_LINE = WORLD_H * 0.45     # y < SEA_LINE = 빙판, 이상 = 바다
 
 ATTACK_RANGE = 3.0            # 이 거리 안이면 사냥 시도 가능

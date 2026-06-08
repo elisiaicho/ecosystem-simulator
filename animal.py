@@ -137,6 +137,24 @@ class Animal:
         self.is_alive = False
         self.state = "dead"
 
+    # ── 서식지 상태 조회 ─────────────────────────────────────
+    def is_on_ice(self, terrain) -> bool:
+        """현재 빙하(유빙) 위에 있는지 반환. terrain 객체 필요."""
+        return terrain.is_ice_at(self.x, self.y)
+
+    def is_on_water(self, terrain) -> bool:
+        """현재 바다(빙하 밖) 위에 있는지 반환."""
+        return not terrain.is_ice_at(self.x, self.y)
+
+    def is_stranded(self, terrain) -> bool:
+        """빙하 동물이 빙하에서 완전히 고립됐는지 반환.
+        (빙하 위도 아니고, 가까운 빙하도 없음 → 곧 죽음)
+        """
+        if self.HABITAT != "ice":
+            return False
+        return (not terrain.is_ice_at(self.x, self.y)
+                and terrain.dist_to_ice(self.x, self.y) > terrain.STRAND_DIST)
+
     # 번식 가능 여부(밀도의존) 
     def can_reproduce(self, species_count):
         """

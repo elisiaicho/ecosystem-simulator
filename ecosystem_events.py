@@ -1,7 +1,7 @@
 """
 ecosystem_events.py
 -------------------
-담당: 1202 김산하
+담당: 1216 홍주영
 
 환경 이벤트. 생태계를 '한 방에' 무너뜨리지 않도록 강도를 완만하게 설계했다.
 (이벤트가 너무 세면 그 자체로 연쇄 멸종을 유발하므로, 교란은 작게 두고
@@ -14,16 +14,14 @@ ecosystem_events.py
 """
 
 import random
-from abc import ABC, abstractmethod
 
 
-class Event(ABC):
+class Event:
     name = "Event"
-
-    @abstractmethod
     def trigger(self, sim):
-        """시뮬레이션에 이벤트 효과를 적용하고 로그 문자열 리스트를 반환."""
-        raise NotImplementedError
+        return []
+
+
 class Blizzard(Event):
     """눈보라 — 추위에 약한 개체에만 소량 피해."""
     name = "Blizzard"
