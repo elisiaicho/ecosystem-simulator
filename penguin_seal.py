@@ -36,6 +36,8 @@ class Penguin(Animal):
 
     def __init__(self, x=0, y=0, **kw):
         super().__init__(x=x, y=y, hp=50, speed=1.1, cold_resistance=0.85, **kw)
+     def huddle_score(self):
+        return round((1.0 - min(self.hunger, 100.0) / 100.0) * self.cold_resistance, 3)
 
 
 class Seal(Animal):
@@ -63,3 +65,6 @@ class Seal(Animal):
     def __init__(self, x=0, y=0, **kw):
         super().__init__(x=x, y=y, hp=80, speed=1.15, cold_resistance=0.8,
                          hunger=25, **kw)
+    def dive_readiness(self):
+        health_ratio = self.hp / max(self.max_hp, 1.0)
+        return round(health_ratio * self.cold_resistance, 3)
