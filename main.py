@@ -308,6 +308,10 @@ class Simulation:
 
         for k in krill:
             k.drift(self.world_w, self.world_h, self.sea_line, terrain=self.terrain)
+            # drift 후에도 빙하 위에 있으면 즉시 바다로 워프
+            if self.terrain.is_ice_at(k.x, k.y):
+                wx, wy = self.terrain.random_water_pos()
+                k.x, k.y = wx, wy
 
     # ── 이끼 재생(로지스틱) ──────────────────────────────────
     def _update_lichen(self):
@@ -335,8 +339,11 @@ class Simulation:
                 return
             # 얼음이 아예 없으면 갈 곳 없음 → 그냥 떠돎(곧 사망)
         # 해양 동물이 얼음 위(표면 결빙)면 트인 물로 살짝 이동
+        # 해양 동물(크릴·대구·Orca 등)이 빙하 위에 있으면 즉시 바다로 워프
+        # move_toward로 밀면 빙하가 빠르게 덮을 때 탈출 못하는 경우가 생김
         elif a.HABITAT == "water" and self.terrain.is_ice_at(a.x, a.y):
-            a.move_toward(a.x, self.world_h - 1, self.world_w, self.world_h)
+            wx, wy = self.terrain.random_water_pos()
+            a.x, a.y = wx, wy
             a._clamp(self.world_w, self.world_h)
 
         # 도망: 나를 먹는 포식자가 가까우면 회피(피식자 refuge → 안정화)
