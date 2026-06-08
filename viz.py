@@ -1,6 +1,7 @@
 """
 viz.py
 ------
+pygame 실시간 시각화 (담당: 1210 이강희)
 
 [카메라 스크롤 구조]
 - 맵 전체(WORLD_W x WORLD_H)는 큰 가상 캔버스에 그려진다.
@@ -12,6 +13,7 @@ viz.py
   Space       일시정지/재개
   F           4배속 토글
   M           온난화 +3
+  Y           줌 (확대/축소)
   방향키/WASD  카메라 이동
   마우스 휠    카메라 이동 (상하)
   Shift+휠    카메라 이동 (좌우)
@@ -21,14 +23,13 @@ import pygame
 import os
 import math
 import time
-import random
 
 # ── 화면 배치 ──────────────────────────────────────────────────────────────
 SCALE    = 8        # 시뮬 1칸 = 8픽셀
 UI_W     = 300      # 우측 UI 패널 너비
 VIEW_W   = 1280     # 뷰포트 너비 (픽셀)
 VIEW_H   = 720      # 뷰포트 높이 (픽셀)
-CAM_SPEED = 12      # 키보드 카메라 이동 속도 (픽셀/프레임)
+CAM_SPEED = 25      # 키보드 카메라 이동 속도 (픽셀/프레임)
 SCROLL_SPD = 40     # 마우스 휠 스크롤 속도
 
 C_ICE   = (224, 236, 246)
@@ -65,25 +66,15 @@ KOR = {
 # ── 스프라이트 ──────────────────────────────────────────────────────────────
 ANIMAL_SPRITES = {}
 
-# ── 펭귄 희귀 변종 스킨 ───────────────────────────────────────────────────────
-# 각 펭귄은 출생 시 5% 확률로 '이나경', 5% 확률로 '윈터', 90% 확률로 일반 펭귄.
-# 스킨은 좌우 구분 이미지가 없으므로 단일 이미지를 로드 후 좌우 자동 생성한다.
-PENGUIN_SKINS = {
-    "inakyung": "penguin_이나경.png",
-    "winter":   "penguin_윈터.png",
-}
-PENGUIN_SKIN_SPRITES = {}
-PENGUIN_SKIN_PROB = 0.05   # 변종 1종당 출현 확률
-
 ASSET_FILENAMES = {
-    "PolarBear": ("polarbear_right.png", "polarbear_left.png"),
-    "ArcticFox": ("arcticfox_right.png", "arcticfox_left.png"),
-    "Penguin":   ("penguin_right.png", "penguin_left.png"),
-    "Seal":      ("seal_right.png", "seal_left.png"),
-    "Orca":      ("orca_right.png", "orca_left.png"),
-    "ArcticCod": ("arcticcod_right.png", "arcticcod_left.png"),
-    "Krill":     ("krill_right.png", "krill_left.png"),
-    "Reindeer":  ("reindeer_right.png", "reindeer_left.png"),
+    "PolarBear": ("polarbear_right.png",  "polarbear_left.png"),
+    "ArcticFox": ("arcticfox_right.png",  "arcticfox_left.png"),
+    "Penguin":   ("penguin_right.png",    "penguin_left.png"),
+    "Seal":      ("seal_right.png",       "seal_left.png"),
+    "Orca":      ("orca_right.png",       "orca_left.png"),
+    "ArcticCod": ("arcticcod_right.png",  "arcticcod_left.png"),
+    "Krill":     ("krill_right.png",      "krill_left.png"),
+    "Reindeer":  ("reindeer_right.png",   "reindeer_left.png"),
 }
 
 
@@ -107,37 +98,8 @@ def load_animal_assets():
             ANIMAL_SPRITES[sp] = {"right": img_right,
                                   "left":  img_left,
                                   "dead":  img_dead}
-            print(f"[이미지 로드] {sp} ✓")
         except Exception as e:
-            print(f"[오류] {sp} 이미지 로드 실패: {e}")
-
-    # ── 펭귄 희귀 변종 스킨 로드 (단일 이미지 → 좌우 자동 생성) ──────────────
-    pr      = SPECIES_R["Penguin"]
-    skin_h  = max(4, int(pr * SCALE * 2.5 * IMG_SCALE))
-    for key, fname in PENGUIN_SKINS.items():
-        try:
-            path      = os.path.join(base_dir, "assets", fname)
-            img_right = _load_img(path, skin_h)
-            # 원본이 오른쪽을 본다고 가정. 만약 왼쪽을 보면 right/left를 서로 바꾸면 됨.
-            img_left  = pygame.transform.flip(img_right, True, False)
-            PENGUIN_SKIN_SPRITES[key] = {"right": img_right, "left": img_left}
-            print(f"[이미지 로드] Penguin/{key} ✓")
-        except Exception as e:
-            print(f"[오류] Penguin/{key} 스킨 로드 실패: {e}")
-
-
-def assign_penguin_skin(a):
-    """펭귄 개체의 변종을 출생(최초 렌더) 시 1회 결정해 고정한다.
-    반환값: 'inakyung' | 'winter' | None(일반).
-    개체에 _viz_skin 속성을 캐싱하므로 이후 프레임에서 변하지 않는다."""
-    skin = getattr(a, "_viz_skin", "__unset__")
-    if skin == "__unset__":
-        roll = random.random()
-        if   roll < PENGUIN_SKIN_PROB:           skin = "inakyung"
-        elif roll < PENGUIN_SKIN_PROB * 2:       skin = "winter"
-        else:                                    skin = None
-        a._viz_skin = skin
-    return skin
+            pass
 
 
 # ── 좌표 변환 헬퍼 ──────────────────────────────────────────────────────────
@@ -152,6 +114,7 @@ def is_in_view(px, py, margin=20):
 
 # ── 메인 루프 ───────────────────────────────────────────────────────────────
 def run_with_pygame(sim):
+    global SCALE
     pygame.init()
     screen = pygame.display.set_mode((VIEW_W + UI_W, VIEW_H))
     pygame.display.set_caption("극지방의 아이들 — 생태계 시뮬레이션")
@@ -175,7 +138,7 @@ def run_with_pygame(sim):
     cam_y  = max(0, map_ph // 2 - VIEW_H // 2)
 
     def clamp_cam():
-        nonlocal cam_x, cam_y
+        nonlocal cam_x, cam_y, map_pw, map_ph
         cam_x = max(0, min(cam_x, map_pw - VIEW_W))
         cam_y = max(0, min(cam_y, map_ph - VIEW_H))
 
@@ -189,6 +152,7 @@ def run_with_pygame(sim):
     view_surf = pygame.Surface((VIEW_W, VIEW_H))
 
     while running:
+        
         # ── 이벤트 ────────────────────────────────────────────────────────
         for e in pygame.event.get():
             if e.type == pygame.QUIT:
@@ -198,6 +162,27 @@ def run_with_pygame(sim):
                 elif e.key == pygame.K_SPACE:  paused  = not paused
                 elif e.key == pygame.K_f:      fast    = not fast
                 elif e.key == pygame.K_m:      sim.warming += 3.0
+                
+                # --- [오류 수정됨] Y키 줌 토글 ---
+                elif e.key == pygame.K_y:
+                    old_scale = SCALE
+                    SCALE = 4 if SCALE == 8 else 8
+                    
+                    # 1. 스케일 변경에 따라 맵 전체 크기를 갱신 (이게 없으면 시야가 꼬임)
+                    map_pw = sim.world_w * SCALE
+                    map_ph = sim.world_h * SCALE
+                    
+                    # 2. 이미지 크기 재조정
+                    load_animal_assets()
+                    
+                    # 3. 화면 중앙 좌표 유지
+                    center_wx = (cam_x + VIEW_W / 2) / old_scale
+                    center_wy = (cam_y + VIEW_H / 2) / old_scale
+                    cam_x = center_wx * SCALE - VIEW_W / 2
+                    cam_y = center_wy * SCALE - VIEW_H / 2
+                    
+                    # 4. 카메라 위치 제한 (안에 sim이 들어가면 에러가 나므로 지웠습니다!)
+                    clamp_cam()
 
             elif e.type == pygame.MOUSEBUTTONDOWN:
                 if e.button == 1:
@@ -227,7 +212,7 @@ def run_with_pygame(sim):
                     else:
                         cam_y += SCROLL_SPD
                     clamp_cam()
-
+                    
         # ── 키보드 카메라 이동 (매 프레임) ────────────────────────────────
         keys = pygame.key.get_pressed()
         if keys[pygame.K_LEFT]  or keys[pygame.K_a]: cam_x -= CAM_SPEED
@@ -282,7 +267,6 @@ def run_with_pygame(sim):
                                        (px, py), int(r * SCALE), 2)
 
         # ── 사체 ──────────────────────────────────────────────────────────
-        # scavenging 중인 여우 → 가장 가까운 사체 매핑
         fox_on_carcass = {}
         for a in sim.animals:
             if a.is_alive and a.SPECIES == "ArcticFox" and getattr(a, "state", "") == "scavenging":
@@ -317,12 +301,6 @@ def run_with_pygame(sim):
 
             r           = SPECIES_R[a.SPECIES]
             sprite_data = ANIMAL_SPRITES.get(a.SPECIES)
-
-            # 펭귄이면 변종 스킨을 우선 사용 (개체별 출생 시 고정)
-            if a.SPECIES == "Penguin":
-                skin = assign_penguin_skin(a)
-                if skin and skin in PENGUIN_SKIN_SPRITES:
-                    sprite_data = PENGUIN_SKIN_SPRITES[skin]
 
             if sprite_data:
                 img  = sprite_data["right"] if a.facing >= 0 else sprite_data["left"]
@@ -446,14 +424,8 @@ def run_with_pygame(sim):
             info.fill((22, 26, 36))
             view_surf.blit(info, (bx, by))
             pygame.draw.rect(view_surf, C_TITLE, (bx, by, bw, bh), 1)
-            _skin_kor = {"inakyung": "이나경", "winter": "윈터"}
-            _sp_label = selected_animal.SPECIES
-            if selected_animal.SPECIES == "Penguin":
-                _sk = getattr(selected_animal, "_viz_skin", None)
-                if _sk in _skin_kor:
-                    _sp_label += f" ({_skin_kor[_sk]})"
             lines = [
-                f" 종류: {_sp_label}",
+                f" 종류: {selected_animal.SPECIES}",
                 f" 성별: {'수컷(M)' if selected_animal.gender == 'M' else '암컷(F)'}",
                 f" 나이: {selected_animal.age}",
                 f" 체력: {int(get_hp(selected_animal))}",
@@ -468,7 +440,7 @@ def run_with_pygame(sim):
                 ty += 20
 
         # ── 카메라 위치 표시 (좌상단) ─────────────────────────────────────
-        cam_info = f"카메라: ({int(cam_x/SCALE)}, {int(cam_y/SCALE)})  WASD/방향키 이동 | 휠 스크롤"
+        cam_info = f"카메라: ({int(cam_x/SCALE)}, {int(cam_y/SCALE)})  WASD 이동 | Y 줌 토글 | 휠 스크롤"
         view_surf.blit(f_sm.render(cam_info, True, (180, 180, 200)), (mm_x, VIEW_H - mm_h - 25))
 
         # view_surf → screen
@@ -522,8 +494,10 @@ def run_with_pygame(sim):
                         (x0, y)); y += 18
 
         y = VIEW_H - 100
+        # 메뉴얼 부분에 Y키 설명을 명확히 추가했습니다.
         for k, v in [("ESC", "종료"), ("Space", "일시정지"),
                      ("F", "4배속"), ("M", "온난화 +3"),
+                     ("Y", "줌 (화면 확대/축소)"),
                      ("WASD/방향키", "카메라 이동"), ("휠", "스크롤"),
                      ("Shift+휠", "좌우 스크롤")]:
             screen.blit(f_sm.render(k, True, (250, 220, 120)), (x0, y))
