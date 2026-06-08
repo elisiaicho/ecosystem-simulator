@@ -122,3 +122,8 @@ class Reindeer(Animal):
         super().__init__(x=x, y=y, hp=90, speed=1.3, cold_resistance=0.78, **kw)
         self.herd_size = 1
         self.water_speed_decreasingrate = 0.6
+    
+    def herd_alertness(self):
+        return round(self.herd_size + self.DETECTION * 0.1, 3)
+
+
