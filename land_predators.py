@@ -63,3 +63,6 @@ class ArcticFox(Animal):
 
     def __init__(self, x=0, y=0, **kw):
         super().__init__(x=x, y=y, hp=40, speed=1.4, cold_resistance=0.88, **kw)
+    def foraging_efficiency(self):
+        hunger_bonus = max(0.0, 50.0 - self.hunger) / 100.0
+        return round(self.FORAGE_SUCCESS * (1.0 + hunger_bonus), 3)
