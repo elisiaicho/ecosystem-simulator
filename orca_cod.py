@@ -34,6 +34,8 @@ class ArcticCod(Animal):
 
     def __init__(self, x=0, y=0, **kw):
         super().__init__(x=x, y=y, hp=20, speed=1.0, cold_resistance=0.95, **kw)
+    def schooling_bias(self):
+        return round(max(0.0, self.DETECTION - self.hunger * 0.05), 3
 
 
 class Orca(Animal):
@@ -59,3 +61,5 @@ class Orca(Animal):
         super().__init__(x=x, y=y, hp=250, speed=1.4, cold_resistance=0.85,
                          hunger=25, **kw)
         self.echo_ring =0
+    def pod_signal_strength(self):
+        return round(self.DETECTION + getattr(self, "echo_ring", 0) * 0.1, 3)
