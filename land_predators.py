@@ -35,6 +35,8 @@ class PolarBear(Animal):
     def __init__(self, x=0, y=0, **kw):
         super().__init__(x=x, y=y, hp=200, speed=1.25, cold_resistance=0.95,
                          hunger=25, **kw)
+    def ice_patrol_radius(self):
+        return round(self.DETECTION + self.speed * 2.0, 3)
 
 
 class ArcticFox(Animal):
