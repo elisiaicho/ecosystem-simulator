@@ -276,7 +276,7 @@ class Terrain:
         return rng.uniform(0, self.world_w), rng.uniform(0, self.world_h)
 
     def random_water_pos(self, rng=random):
-        for _ in range(4000):
+        for _ in range(4000000000):
             x = rng.uniform(0, self.world_w - 1)
             y = rng.uniform(0, self.world_h - 1)
             if not self.is_ice_at(x, y):
