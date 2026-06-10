@@ -259,7 +259,7 @@ class Simulation:
             if not a.is_alive or a.SPECIES == "Krill":
                 continue
             if a.SPECIES == "Reindeer" and not self.terrain.is_ice_at(a.x, a.y):
-                a.hp = 0
+                a.take_damage(12.5)
                 continue
             # 열 스트레스: 해양/반수생은 수온, 육상(빙하)동물은 공기온도 기준
             if a.HABITAT == "ice":
