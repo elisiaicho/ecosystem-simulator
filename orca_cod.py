@@ -43,10 +43,10 @@ class Orca(Animal):
 
     SPECIES = "Orca"
     HABITAT = "water"
-    CARRYING_CAPACITY = 7
-    MATURITY = 22
-    REPRO_COOLDOWN = 55
-    BASE_REPRO_CHANCE = 0.45
+    CARRYING_CAPACITY = 8    # 10→8: 물범 과포식 방지
+    MATURITY = 18
+    REPRO_COOLDOWN = 28
+    BASE_REPRO_CHANCE = 0.55
     METABOLISM = 0.95              # 큰 먹이를 가끔 먹고 오래 버팀
     WELLFED_HUNGER = 60
     DETECTION = 26.0

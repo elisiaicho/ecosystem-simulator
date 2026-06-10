@@ -17,19 +17,19 @@ class PolarBear(Animal):
 
     SPECIES = "PolarBear"
     HABITAT = "ice"
-    CARRYING_CAPACITY = 11
+    CARRYING_CAPACITY = 14    
     MATURITY = 18
-    REPRO_COOLDOWN = 45
-    BASE_REPRO_CHANCE = 0.45
-    METABOLISM = 0.95
+    REPRO_COOLDOWN = 38
+    BASE_REPRO_CHANCE = 0.52
+    METABOLISM = 0.9
     WELLFED_HUNGER = 60
-    DETECTION = 22.0
+    DETECTION = 30.0
     LIFESPAN = 900
     TEMP_TOLERANCE = 5.0           # 공기온도 기준
     ICE_LOSS_DMG = 10.0             # 헤엄 능숙 → 피해 작음(단, 사냥터 상실)
-
+    STARVE_DAMAGE = 5.0 # animal의 변수 오버라이드
     PREY = ("Seal", "Reindeer")
-    HUNT_SUCCESS = 0.5
+    HUNT_SUCCESS = 0.47      # 0.5→0.40: 물범·순록 사냥 약화로 포식압 완화
     EAT_GAIN = 62.0
 
     def __init__(self, x=0, y=0, **kw):
@@ -48,17 +48,17 @@ class ArcticFox(Animal):
     MATURITY = 8
     REPRO_COOLDOWN = 18
     BASE_REPRO_CHANCE = 0.55
-    METABOLISM = 1.4
+    METABOLISM = 1.8
     WELLFED_HUNGER = 55
     DETECTION = 18.0
     LIFESPAN = 320
     TEMP_TOLERANCE = 7.0           # 공기온도 기준
     ICE_LOSS_DMG = 25.0
-
+    STARVE_DAMAGE = 13.0            # 오버라이드
     # 여우는 작은 먹이(레밍 등, 추상화한 재생 자원 forage)와 사체로 산다.
     SCAVENGER = True
     FORAGE_GAIN = 18.0            # 작은 먹이를 잡았을 때(저강도, 항상 약간 가능)
-    FORAGE_SUCCESS = 0.45
+    FORAGE_SUCCESS = 0.255
     CARCASS_GAIN = 40.0           # 사체를 먹었을 때
 
     def __init__(self, x=0, y=0, **kw):

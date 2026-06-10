@@ -19,6 +19,14 @@ class VisualManager:
         self.system = system # 전체 동물 리스트를 가진 System 객체
         self.selected_animal = None # 현재 클릭해서 선택된 동물
         
+        # 폰트 객체를 생성자에서 한 번만 생성 (매 프레임 생성 시 성능 저하 방지)
+        try:
+            self.font = pygame.font.SysFont("malgungothic", 16)
+            self.heart_font = pygame.font.SysFont("seguiemj", 25)
+        except Exception:
+            self.font = pygame.font.Font(None, 16)
+            self.heart_font = pygame.font.Font(None, 25)
+        
         # 임시 시각 효과를 저장하는 리스트 (효과 내용, 좌표, 생성 시간, 지속 시간)
         self.effects = [] 
 
@@ -39,7 +47,7 @@ class VisualManager:
             # 동물의 반지름 안에 클릭했다면 선택!
             if dist <= ANIMAL_RADIUS + 5: # 약간의 클릭 판정 버프
                 self.selected_animal = animal
-                print(f"[GUI] {animal.name} 선택됨")
+                print(f"[GUI] {animal.SPECIES} 선택됨")
                 return # 한 마리만 선택하고 종료
 
     # ==========================================
@@ -65,20 +73,21 @@ class VisualManager:
         # 테두리
         pygame.draw.rect(self.screen, WHITE, (win_x, win_y, win_w, win_h), 2)
 
-        # 텍스트 그리기 (폰트 객체는 외부에서 초기화해서 들고오는 게 좋습니다)
-        font = pygame.font.SysFont("malgungothic", 16) # 한글 폰트 (윈도우 기준)
+        # 텍스트 그리기
+        font = self.font
         
+        lifespan_str = str(a.LIFESPAN) if a.LIFESPAN is not None else "∞"
         status_text = [
-            f"[{a.name}]",
+            f"[{a.SPECIES}]",
             f"-------------------",
             f"성별: {'수컷' if a.gender == 'M' else '암컷'}",
-            f"나이: {a.age} / {a.max_age}",
+            f"나이: {a.age} / {lifespan_str}",
             f"체력(HP): {int(a.hp)} / 100",
-            f"배고픔: {int(a.hunger)} / 200",
+            f"배고픔: {int(a.hunger)} / 100",
             f"속도: {a.speed}",
             f"-------------------",
-            f"상태: {'임신 중' if a.is_pregnant else '일반'}",
-            f"번식 쿨타임: {a.reproduce_cool}턴"
+            f"상태: {a.state}",
+            f"번식 쿨타임: {a.repro_cd}턴"
         ]
 
         # 체력바 그리기 예시
@@ -138,8 +147,8 @@ class VisualManager:
 
             pygame.draw.circle(self.screen, color, (int(animal.x), int(animal.y)), ANIMAL_RADIUS)
             
-            # 임신한 경우 위에 작은 초록불 표시
-            if animal.is_pregnant:
+            # 번식 이펙트 큐에 reproduction이 등록된 직후 표시 (state로 대체)
+            if animal.state == "eating" and animal.repro_cd == animal.REPRO_COOLDOWN:
                 pygame.draw.circle(self.screen, GREEN, (int(animal.x), int(animal.y) - 15), 4)
 
         # 2. 시각 효과 그리기 및 관리
@@ -162,7 +171,7 @@ class VisualManager:
                 s.set_alpha(int(alpha))
                 
                 # 하트 이모지 블릿 (폰트 필요)
-                heart_font = pygame.font.SysFont("seguiemj", 25) # 윈도우 이모지 폰트
+                heart_font = self.heart_font
                 txt = heart_font.render("❤️", True, WHITE) # 색상은 폰트가 결정함
                 s.blit(txt, (0,0))
                 

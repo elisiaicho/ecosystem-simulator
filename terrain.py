@@ -48,10 +48,10 @@ class Terrain:
     TARGET_COV = 0.42
     R_NEW_MIN, R_NEW_MAX = 12.0, 20.0
     MIN_R = 4.0              # 6.0 → 4.0: 더 작아질 때까지 버팀
-    BASE_SHRINK = 0.005      # 0.015 → 0.005: 기본 융해 1/3로 감소
-    WARM_SHRINK = 0.02       # 0.06 → 0.02: 온난화 피해도 1/3로 감소
-    FORM_CUTOFF = 6.0
-    MAX_BIRTH_PER_TURN = 1
+    BASE_SHRINK = 0.003      
+    WARM_SHRINK = 0.01       # 0.06 → 0.02: 온난화 피해도 1/3로 감소
+    FORM_CUTOFF = 9.0
+    MAX_BIRTH_PER_TURN = 2
     STRAND_DIST = 26.0
 
     # 해류 파라미터
@@ -189,8 +189,8 @@ class Terrain:
             # 융해
             f.r -= shrink
             # 가끔 균열로 추가 감소
-            if self._rng.random() < 0.01:        # 0.03 → 0.01: 균열 확률 1/3로 감소
-                f.r -= self._rng.uniform(0.1, 0.4)  # 0.5~1.5 → 0.1~0.4: 균열 크기도 감소
+            if self._rng.random() < 0.008:        # 0.03 → 0.008: 균열 확률 1/3로 감소
+                f.r -= self._rng.uniform(0.08, 0.32)  # 0.5~1.5 → 0.1~0.4: 균열 크기도 감소
 
         self.floes = [f for f in self.floes if f.r >= self.MIN_R]
 

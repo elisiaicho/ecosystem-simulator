@@ -56,8 +56,8 @@ SPECIES_CLASSES = {
 # 초기 개체수
 INITIAL = {
     "Krill": 30, "ArcticCod": 50, "Reindeer": 18,
-    "Penguin": 28, "Seal": 16, "Orca": 5,
-    "PolarBear": 8, "ArcticFox": 12,
+    "Penguin": 35, "Seal": 22, "Orca": 5,
+    "PolarBear": 12, "ArcticFox": 12,
 }
 
 # "나를 먹는 포식자" 역참조 (도망 판단용)
@@ -106,6 +106,7 @@ class Simulation:
         self.animals = []
         self.carcasses = []
         self.log = []
+        self.event_history = []
         self.last_collapse = None
 
         # 이끼(순록 먹이) 재생 자원
@@ -163,7 +164,7 @@ class Simulation:
                    if a.SPECIES == "Krill" and a.is_alive)
 
     # ── 공간 격자(근접 탐색 가속) ───────────────────────────
-    _CELL = 28  # >= 최대 탐지 반경(범고래 26)
+    _CELL = 32  # >= 최대 탐지 반경(범고래 30)
 
     def _build_grid(self):
         self._grid = {}
@@ -241,18 +242,24 @@ class Simulation:
                                "크릴을 제외한 모든 생물이 사라졌습니다.")
 
         # 7) 통계
+        self._record_event_history()
+
         for s in SPECIES_CLASSES:
             self.history[s].append(c[s])
         self.history["KrillBiomass"].append(self.krill_biomass())
         self.history["IceFraction"].append(self.terrain.ice_fraction())
         self.history["Warming"].append(self.warming)
         self.history["WaterTemp"].append(self.terrain.water_temp)
-
+        if len(self.visual_effects) > 100:
+            self.visual_effects = self.visual_effects[-100:]
     # ── 기후 피해: 열 스트레스 + 빙하 상실 ───────────────────
     def _apply_climate(self):
         wt = self.terrain.water_temp
         for a in self.animals:
             if not a.is_alive or a.SPECIES == "Krill":
+                continue
+            if a.SPECIES == "Reindeer" and not self.terrain.is_ice_at(a.x, a.y):
+                a.hp = 0
                 continue
             # 열 스트레스: 해양/반수생은 수온, 육상(빙하)동물은 공기온도 기준
             if a.HABITAT == "ice":
@@ -337,7 +344,9 @@ class Simulation:
                 a.move_toward(ice[0], ice[1], self.world_w, self.world_h)
                 a._clamp(self.world_w, self.world_h)
                 return
-            # 얼음이 아예 없으면 갈 곳 없음 → 그냥 떠돎(곧 사망)
+            # 얼음이 아예 없으면 갈 곳 없음 → 제자리 대기(곧 ICE_LOSS_DMG로 사망)
+            a.state = "idle"
+            return
         # 해양 동물이 얼음 위(표면 결빙)면 트인 물로 살짝 이동
         # 해양 동물(크릴·대구·Orca 등)이 빙하 위에 있으면 즉시 바다로 워프
         # move_toward로 밀면 빙하가 빠르게 덮을 때 탈출 못하는 경우가 생김
@@ -349,12 +358,18 @@ class Simulation:
         # 도망: 나를 먹는 포식자가 가까우면 회피(피식자 refuge → 안정화)
         threats = THREAT_MAP.get(sp)
         if threats:
+            # 순록은 herd_alertness()로 탐지 반경 동적 적용
+            detect_r = (a.herd_alertness() if sp == "Reindeer" else a.DETECTION)
             pred, d = self._nearest(
-                a, lambda o: o.SPECIES in threats, a.DETECTION)
-            if pred is not None and d < a.DETECTION * 0.6:
+                a, lambda o: o.SPECIES in threats, detect_r)
+            if pred is not None and d < detect_r * 0.6:
                 a.state = "fleeing"
+                prev_x, prev_y = a.x, a.y
                 a.move_away(pred.x, pred.y, self.world_w, self.world_h)
                 a._clamp(self.world_w, self.world_h)
+                # 빙하 동물이 도망치다 바다로 나가는 것 방지
+                if a.HABITAT == "ice" and not self.terrain.is_ice_at(a.x, a.y):
+                    a.x, a.y = prev_x, prev_y
                 if a.hunger <= a.WELLFED_HUNGER + 20:
                     return  # 위급하지 않으면 도망에 집중
 
@@ -377,6 +392,13 @@ class Simulation:
             self._fox_feed(a)
             return
 
+        # 대구: school_move() — 계획서 상호작용
+        # 포식자(Orca·Penguin·Seal) 탐지 시 같은 종 무리 쪽으로 뭉쳐서 도망.
+        # 탐지만 해도 번식 쿨다운 증가(스트레스 번식 지연).
+        if sp == "ArcticCod":
+            self._cod_school_move(a)
+            return
+
         # 포식자: 사냥
         prey_types = getattr(a, "PREY", ())
         ate = False
@@ -385,17 +407,28 @@ class Simulation:
         if not ate and getattr(a, "EATS_KRILL", False):
             ate = self._eat_krill(a)
         if not ate:
+            prev_x, prev_y = a.x, a.y
             a.random_walk(self.world_w, self.world_h)
+            # 빙하 동물이 바다로 빠져나가는 것 방지
+            if a.HABITAT == "ice" and not self.terrain.is_ice_at(a.x, a.y):
+                a.x, a.y = prev_x, prev_y
             a._clamp(self.world_w, self.world_h)
 
     def _hunt(self, pred, prey_types):
-        
+        # 종별 동적 탐지 반경 계산
+        if pred.SPECIES == "Orca":
+            detect_range = pred.pod_signal_strength()
+        elif pred.SPECIES == "PolarBear":
+            detect_range = pred.ice_patrol_radius()
+        else:
+            detect_range = pred.DETECTION
+
         prey, d = self._nearest(
-            pred, lambda o: o.SPECIES in prey_types, pred.DETECTION)
+            pred, lambda o: o.SPECIES in prey_types, detect_range)
         if prey is None:
             return False
         if pred.SPECIES == "Orca":
-            if pred.echo_ring <=0:
+            if pred.echo_ring <= 0:
                 pred.echo_ring = 20
         if d > ATTACK_RANGE:
             pred.state = "hunting"
@@ -445,14 +478,30 @@ class Simulation:
             self.lichen -= deer.GRAZE_COST
             deer.eat(deer.GRAZE_GAIN)
             # 먹는 중엔 제자리 (가끔만 조금 움직임)
+            prev_x ,prev_y = deer.x, deer.y
+            if not self.terrain.is_ice_at(deer.x, deer.y):
+                    deer.x, deer.y = prev_x, prev_y
+                    deer._wander_dx *= -0.5  # ← 추가
+                    deer._wander_dy *= -0.5  # ← 추가
+                    prev_x, prev_y = deer.x, deer.y
             if random.random() < 0.3:
+                
                 deer.random_walk(self.world_w, self.world_h)
+                # 이동 후 빙하 밖이면 원위치로 되돌림
+                if not self.terrain.is_ice_at(deer.x, deer.y):
+                    deer.x, deer.y = prev_x, prev_y
+                    deer._wander_dx *= -0.5  # ← 추가
+                    deer._wander_dy *= -0.5  # ← 추가
         else:
+            prev_x, prev_y = deer.x, deer.y
             deer.random_walk(self.world_w, self.world_h)
+            # 이동 후 빙하 밖이면 원위치로 되돌림
+            if not self.terrain.is_ice_at(deer.x, deer.y):
+                deer.x, deer.y = prev_x, prev_y
         deer._clamp(self.world_w, self.world_h)
 
     def _fox_feed(self, fox):
-        # 사체 우선
+        # 1순위: 사체 청소
         best, bd = None, fox.DETECTION
         for c in self.carcasses:
             dd = math.hypot(fox.x - c.x, fox.y - c.y)
@@ -461,17 +510,103 @@ class Simulation:
         if best is not None:
             if bd > ATTACK_RANGE:
                 fox.move_toward(best.x, best.y, self.world_w, self.world_h)
+                fox.state = "scavenging"
             else:
                 take = min(best.food, fox.CARCASS_GAIN)
                 best.food -= take
                 fox.eat(take)
             fox._clamp(self.world_w, self.world_h)
             return
-        # 소형 먹이 채집(레밍 등 추상화) — 항상 약간 가능
-        if fox.hunger > 25 and random.random() < fox.FORAGE_SUCCESS:
+
+        # 2순위: 소형 먹이 채집 (배부를수록 효율 ↑ — foraging_efficiency 적용)
+        if fox.hunger > 25 and random.random() < fox.foraging_efficiency():
             fox.eat(fox.FORAGE_GAIN)
+            fox.random_walk(self.world_w, self.world_h)
+            fox._clamp(self.world_w, self.world_h)
+            return
+
+        # 3순위: follow(PolarBear) — scavenging 하는거
+        # 사체도 없고 채집도 실패하면, 가장 가까운 북극곰을 몰래 따라다닌다.
+        # 곰이 사냥에 성공하면 그 자리에 사체가 생겨 1순위로 다음 턴에 먹게 된다.
+        bear, bear_d = self._nearest(
+            fox, lambda o: o.SPECIES == "PolarBear" and o.is_alive, fox.DETECTION * 1.5)
+        if bear is not None:
+            # 곰 바로 옆까지 붙지 않고 살짝 거리를 두며 따라감 (5칸 거리 유지)
+            FOLLOW_DIST = 5.0
+            if bear_d > FOLLOW_DIST + fox.speed:
+                fox.state = "scavenging"  # 청소부 추적 중
+                fox.move_toward(bear.x, bear.y, self.world_w, self.world_h)
+            else:
+                fox.random_walk(self.world_w, self.world_h)
+            fox._clamp(self.world_w, self.world_h)
+            return
+
         fox.random_walk(self.world_w, self.world_h)
         fox._clamp(self.world_w, self.world_h)
+
+    # ── 대구 무리 이동 (school_move) ────────────────────────────
+    def _cod_school_move(self, cod):
+        """
+        ArcticCod.school_move() — 계획서 상호작용 구현.
+
+        1) 포식자(Orca·Penguin·Seal) 탐지 시:
+           - 같은 종 무리의 무게중심 방향으로 이동(무리로 뭉치기).
+           - 탐지만 해도 repro_cd += 3 (스트레스로 번식 지연).
+        2) 포식자 없으면 크릴을 찾아 먹는 기존 행동.
+        """
+        COD_PREDATORS = ("Orca", "Penguin", "Seal")
+        pred, pd = self._nearest(
+            cod, lambda o: o.SPECIES in COD_PREDATORS, cod.DETECTION)
+
+        if pred is not None:
+            # 스트레스 번식 지연: 탐지만 해도 쿨다운 증가
+            cod.repro_cd = min(cod.repro_cd + 3, cod.REPRO_COOLDOWN)
+            cod.state = "fleeing"
+
+            # schooling_bias: 배부를수록 더 넓게 무리를 탐색
+            school_r = int(cod.schooling_bias() / self._CELL) + 1
+
+            # 무리 무게중심 계산: schooling_bias 반경 안의 같은 종
+            schoolmates = [
+                o for o in self._grid.get(
+                    (int(cod.x // self._CELL), int(cod.y // self._CELL)), [])
+                if o is not cod and o.is_alive and o.SPECIES == "ArcticCod"
+            ]
+            # 인접 셀까지 확장 (school_r 반경)
+            cx, cy = int(cod.x // self._CELL), int(cod.y // self._CELL)
+            for gx in range(cx - school_r, cx + school_r + 1):
+                for gy in range(cy - school_r, cy + school_r + 1):
+                    if gx == cx and gy == cy:
+                        continue
+                    schoolmates += [
+                        o for o in self._grid.get((gx, gy), [])
+                        if o is not cod and o.is_alive and o.SPECIES == "ArcticCod"
+                    ]
+
+            if schoolmates:
+                # 무리 중심으로 이동하면서 포식자 반대 방향으로 편향
+                mx = sum(o.x for o in schoolmates) / len(schoolmates)
+                my = sum(o.y for o in schoolmates) / len(schoolmates)
+                # 무리 중심 방향 벡터
+                tx = mx - cod.x + (cod.x - pred.x) * 0.6
+                ty = my - cod.y + (cod.y - pred.y) * 0.6
+            else:
+                # 무리 없으면 포식자에서 직접 도망
+                tx = cod.x - pred.x
+                ty = cod.y - pred.y
+
+            dist = math.hypot(tx, ty)
+            if dist > 1e-9:
+                cod.x += (tx / dist) * cod.speed
+                cod.y += (ty / dist) * cod.speed
+                cod.facing = 1 if tx >= 0 else -1
+            cod._clamp(self.world_w, self.world_h)
+            return
+
+        # 포식자 없으면 크릴 섭식
+        if not self._eat_krill(cod):
+            cod.random_walk(self.world_w, self.world_h)
+            cod._clamp(self.world_w, self.world_h)
 
     # ── 번식(밀도의존 로지스틱) ──────────────────────────────
     def _reproduce(self):
@@ -497,8 +632,12 @@ class Simulation:
             n = c[sp]
             if n < 2:
                 continue
-            males   = [m for m in groups["M"] if m.can_reproduce(n) > 0]
-            females = [f for f in groups["F"] if f.can_reproduce(n) > 0]
+            if not groups["M"] or not groups["F"]:
+                continue  # 암수 중 한쪽이 없으면 건너뜀 (기존엔 조용히 실패)
+            males = [m for m in groups["M"]
+                     if m.can_reproduce(n) > 0 and m.can_reproduce_here(self.terrain)]
+            females = [f for f in groups["F"]
+                       if f.can_reproduce(n) > 0 and f.can_reproduce_here(self.terrain)]
             random.shuffle(males)
             random.shuffle(females)
             for male, female in zip(males, females):
@@ -511,21 +650,21 @@ class Simulation:
                 for _ in range(male.LITTER):
                     if c[sp] >= male.CARRYING_CAPACITY:
                         break
-                    ox = female.x + random.uniform(-3, 3)
-                    oy = female.y + random.uniform(-3, 3)
+                    ox, oy = female.choose_offspring_position(self.terrain)
                     child = female.make_offspring(ox, oy)
                     child._clamp(self.world_w, self.world_h)
                     newborns.append(child)
                     c[sp] += 1
-                    # [추가] 번식이 일어난 부모(혹은 새끼)의 위치를 이펙트 큐에 등록
-                    self.visual_effects.append(('reproduction', male.x, female.y))
-                    # ─────────────────────────────────────────────────────────
+                # 번식 이펙트: 암컷 위치에 한 번만 등록 (LITTER 루프 밖)
+                self.visual_effects.append(('reproduction', female.x, female.y))
                 male.reset_repro()
                 female.reset_repro()
 
         # 무성생식
         for a in asexual:
             n = c[a.SPECIES]
+            if not a.can_reproduce_here(self.terrain):
+                continue
             chance = a.can_reproduce(n)
             if chance <= 0:
                 continue
@@ -533,8 +672,7 @@ class Simulation:
                 for _ in range(a.LITTER):
                     if c[a.SPECIES] >= a.CARRYING_CAPACITY:
                         break
-                    ox = a.x + random.uniform(-3, 3)
-                    oy = a.y + random.uniform(-3, 3)
+                    ox, oy = a.choose_offspring_position(self.terrain)
                     child = a.make_offspring(ox, oy)
                     child._clamp(self.world_w, self.world_h)
                     newborns.append(child)
@@ -555,7 +693,7 @@ class Simulation:
                     food = 30.0 + a.max_hp * 0.25
                     self.carcasses.append(Carcass(a.x, a.y, food))
         self.animals = survivors
-
+        self._build_grid()  # 시체 제거후 격자 즉시 갱신시키기
     # ── 이벤트 ─────────────────────────────────────────────
     def _events(self):
         # 눈보라: 40턴마다
@@ -582,7 +720,7 @@ class Simulation:
         c = self.counts()
         ice_ok = self.terrain.ice_fraction() > 0.2
         for sp, cls in SPECIES_CLASSES.items():
-            if sp == "Krill" or not (0 < c[sp] <= 3):
+            if sp == "Krill" or not (0 < c[sp] <= 5):
                 continue
             if cls.HABITAT == "ice":
                 viable = ice_ok
@@ -596,6 +734,13 @@ class Simulation:
             self.log.append(f"[계절 이동] {sp} 소수 개체가 합류했습니다.")
 
     # ── 헤드리스 실행(검증용) ────────────────────────────────
+    def _record_event_history(self):
+        for line in self.log:
+            if line:
+                self.event_history.append(f"[T{self.turn}] {line}")
+        if len(self.event_history) > 200:
+            self.event_history = self.event_history[-200:]
+
     def run_headless(self, turns, verbose_every=0):
         for _ in range(turns):
             if not self.running:

@@ -62,8 +62,9 @@ class Animal:
                  gender=None, hunger=30):
         self.x = float(x)
         self.y = float(y)
-        self.hp = float(hp)
         self.max_hp = float(hp)
+        self.hp = float(hp)
+        
         self.speed = float(speed)
         self.cold_resistance = float(cold_resistance)
         self.gender = gender or random.choice(["M", "F"])
@@ -74,14 +75,16 @@ class Animal:
         self.repro_cd = random.randint(0, self.REPRO_COOLDOWN)
         self.state = "idle"        # idle / hunting / fleeing / eating
         self.facing = 1            # 스프라이트 좌우 반전용
-    
+        self._wander_dx = random.uniform(-1,1)
+        self._wander_dy = random.uniform(-1,1)
+
     # hp 프로퍼티
     @property
     def hp(self):
         return self.__hp
     @hp.setter
     def hp(self, value : float):
-        self.__hp = max(0.0, min(100.0,float(value)))
+        self.__hp = max(0.0, min(float(self.max_hp), float(value))) 
         if self.__hp == 0 and self.is_alive:
             self.die()
 
@@ -113,8 +116,6 @@ class Animal:
         # 노화사
         if self.LIFESPAN is not None and self.age > self.LIFESPAN:
             self.take_damage(self.STARVE_DAMAGE * 15)  # 수명 끝에서 갑자기가 아니라 서서히 약해지도록
-        # animal 들의 물 감속 속도 구현하기.
-        speed_decrease_rate = getattr(self, 'water_speed_decreasingrate', 0)
         
     # 먹기: 굶주림 감소 + 약간의 체력 회복 
     def eat(self, amount):
@@ -178,6 +179,12 @@ class Animal:
         room = 1.0 - (species_count / K)
         return self.BASE_REPRO_CHANCE * room
 
+    def can_reproduce_here(self, terrain):
+        return True
+
+    def choose_offspring_position(self, terrain):
+        return self.x + random.uniform(-3, 3), self.y + random.uniform(-3, 3)
+
     def reset_repro(self):
         """번식 직후 쿨다운/굶주림 비용 부과."""
         self.repro_cd = self.REPRO_COOLDOWN
@@ -209,8 +216,11 @@ class Animal:
         self._step(self.x - tx, self.y - ty, world_w, world_h)
 
     def random_walk(self, world_w, world_h):
-        self._step(random.uniform(-1, 1), random.uniform(-1, 1),
-                   world_w, world_h)
+        # 관성 기반 wandering: 이전 방향에서 조금씩 틀어 자연스러운 곡선 이동
+        # 0.7 = 관성 유지 비율 / 0.3 = 새 랜덤 방향 혼합 비율
+        self._wander_dx = self._wander_dx * 0.85 + random.uniform(-1, 1) * 0.15
+        self._wander_dy = self._wander_dy * 0.85 + random.uniform(-1, 1) * 0.15
+        self._step(self._wander_dx, self._wander_dy, world_w, world_h)
 
     def _clamp(self, world_w, world_h, sea_line=None):
         """월드 밖으로 못 나가게. 서식지(빙판/바다)도 강제."""

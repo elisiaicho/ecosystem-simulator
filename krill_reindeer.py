@@ -104,19 +104,19 @@ class Reindeer(Animal):
     HABITAT = "ice"
     CARRYING_CAPACITY = 28
     MATURITY = 12
-    REPRO_COOLDOWN = 24
-    BASE_REPRO_CHANCE = 0.55
+    REPRO_COOLDOWN = 20
+    BASE_REPRO_CHANCE = 0.6
     METABOLISM = 1.6
-    WELLFED_HUNGER = 55
+    WELLFED_HUNGER = 62
     DETECTION = 14.0
     LIFESPAN = 600
     TEMP_TOLERANCE = 6.0           # 공기온도 기준
-    ICE_LOSS_DMG = 40.0            # 빙하/툰드라가 녹으면 갈 곳이 없다(헤엄 못 침)
-
+    ICE_LOSS_DMG = 20.0            # 빙하/툰드라가 녹으면 갈 곳이 없다(헤엄 못 침)
+    STARVE_DAMAGE = 3.0    #오버라이드
     # 먹이 = 이끼
     EATS_LICHEN = True
-    GRAZE_GAIN = 26.0             # 한 번 풀을 뜯을 때 굶주림 감소량
-    GRAZE_COST = 9.0             # 이끼 자원에서 소모하는 양
+    GRAZE_GAIN = 32.0             # 한 번 풀을 뜯을 때 굶주림 감소량
+    GRAZE_COST = 8.0             # 이끼 자원에서 소모하는 양
 
     def __init__(self, x=0, y=0, **kw):
         super().__init__(x=x, y=y, hp=90, speed=1.3, cold_resistance=0.78, **kw)
